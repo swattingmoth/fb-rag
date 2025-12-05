@@ -281,6 +281,7 @@ if __name__ == "__main__":
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
+    #TODO: Accetp input/output paths as arguments
     # Process the Facebook posts file
     input_path = (
         r"c:\Users\jordan-dev\facebook_download\your_facebook_activity\posts\your_posts__check_ins__photos_and_videos_1.json"

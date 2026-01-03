@@ -1,5 +1,8 @@
 from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
+from langchain_classic.retrievers import ParentDocumentRetriever
+
+from store_docs import create_doc_store, create_document_retriever
 
 
 def load_vectorstore(db_folder_name: str, collection_name: str = "documents") -> Chroma:
@@ -25,19 +28,19 @@ def load_vectorstore(db_folder_name: str, collection_name: str = "documents") ->
     return vectorstore
 
 
-def prompt_query(vectorstore: Chroma) -> None:
+def prompt_query(retriever: ParentDocumentRetriever) -> None:
     """
-    Prompt the user for queries and return results from the vector store.
+    Prompt the user for queries and return results from the retriever.
 
     Args:
-        vectorstore: The Chroma vectorstore instance to query.
+        retriever: The ParentDocumentRetriever instance to query.
     """
     while True:
         query = input("Enter your query (or 'exit' to quit): ")
         if query.lower() == "exit":
             break
 
-        results = vectorstore.similarity_search(query, k=5)
+        results = retriever.invoke(query, top_k=5)
 
         if not results:
             print("No relevant documents found.")
@@ -49,7 +52,9 @@ def prompt_query(vectorstore: Chroma) -> None:
 
 
 if __name__ == "__main__":
-    vectorstore = load_vectorstore(
-        r"c:\users\jordan-dev\data\chroma_db", "facebook_posts"
+    retriever = create_document_retriever(
+        db_folder_name=r"c:\users\jordan-dev\data\chroma_db",
+        collection_name="facebook_posts",
+        parent_store=create_doc_store(r"c:\users\jordan-dev\data\parent_store"),
     )
-    prompt_query(vectorstore)
+    prompt_query(retriever)

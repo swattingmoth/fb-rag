@@ -215,8 +215,8 @@ def fix_mojibake(text: str) -> str:
     replacements = {
         r"\u00e2\u0080\u0093": "-",
         r"\u00e2\u0080\u0094": "—",
-        r"\u00e2\u0080\u009c": '"',
-        r"\u00e2\u0080\u009d": '"',
+        r"\u00e2\u0080\u009c": r"\"",
+        r"\u00e2\u0080\u009d": r"\"",
         r"\u00e2\u0080\u0099": "'",
         r"\u00c3\u00a2\u0080\u0093": "-",  # double-encoded variant
     }
@@ -300,10 +300,9 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    # TODO: Accetp input/output paths as arguments
+    # TODO: Accept input/output paths as arguments
     # Process the Facebook posts file
-    # input_path = r"c:\Users\jordan-dev\facebook_download\your_facebook_activity\posts\your_posts__check_ins__photos_and_videos_1.json"
-    input_path = r"c:\users\jordan-dev\data\testpost.json"
+    input_path = r"c:\Users\jordan-dev\facebook_download\your_facebook_activity\posts\your_posts__check_ins__photos_and_videos_1.json"
     output_path = r"c:\Users\jordan-dev\data\processed_posts.json"
 
     try:

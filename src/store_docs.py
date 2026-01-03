@@ -112,7 +112,10 @@ def create_document_retriever(
     )
 
     retriever = ParentDocumentRetriever(
-        vectorstore=vectorstore, docstore=parent_store, child_splitter=splitter
+        vectorstore=vectorstore,
+        docstore=parent_store,
+        child_splitter=splitter,
+        search_kwargs={"k": 7},
     )
 
     return retriever
@@ -133,7 +136,6 @@ def create_doc_store(folder_path: str) -> BaseStore[str, Document]:
 
 if __name__ == "__main__":
     documents = load_json_documents(r"c:\Users\jordan-dev\data\processed_posts.json")
-    split_docs = split_documents(documents)
 
     retriever = create_document_retriever(
         db_folder_name=r"c:\users\jordan-dev\data\chroma_db",
@@ -141,4 +143,4 @@ if __name__ == "__main__":
         parent_store=create_doc_store(r"c:\users\jordan-dev\data\parent_store"),
     )
 
-    retriever.add_documents(split_docs)
+    retriever.add_documents(documents)

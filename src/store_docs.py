@@ -1,3 +1,4 @@
+from json import load
 import shutil
 from typing import Iterable, List, Tuple
 from fastembed import (
@@ -403,12 +404,16 @@ def store_documents(
     points = []
 
     document_texts = [doc.page_content for doc in documents]
+    print("Creating dense embeddings...")
     dense_embeddings = list(dense_embeddings_model.embed(document_texts))
+    print("Creating sparse embeddings...")
     sparse_embeddings = list(sparse_embeddings_model.embed(document_texts))
+    print("Creating late interaction embeddings...")
     late_interaction_embeddings = list(
         late_interaction_embeddings_model.embed(document_texts)
     )
 
+    print("Upserting points into Qdrant...")
     for idx, (
         dense_embedding,
         sparse_embedding,
@@ -438,18 +443,12 @@ def store_documents(
     print(f"Upserted {len(points)} points. Operation info: {operation_info}")
 
 
-if __name__ == "__main__":
-    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"  # silence symlink nag
-    os.environ["FASTEMBED_CACHE_PATH"] = (
-        r"c:\users\jordan-dev\data\fastembed_cache"  # persistent cache
-    )
-
-    # Clear existing stores for a fresh start
-    # clear_stores(
-    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
-    #     collection_name="facebook_posts",
-    #     parent_store_path=r"c:\users\jordan-dev\data\parent_store",
-    # )
+def load_embed_store() -> Tuple[
+    QdrantClient,
+    OllamaTextEmbedding,
+    SparseTextEmbedding,
+    LateInteractionTextEmbedding,
+]:
     documents = load_json_documents(r"c:\Users\jordan-dev\data\processed_posts.json")
 
     client, dense_model, sparse_model, late_interaction_model = create_client(
@@ -464,6 +463,24 @@ if __name__ == "__main__":
         sparse_embeddings_model=sparse_model,
         late_interaction_embeddings_model=late_interaction_model,
     )
+
+    return client, dense_model, sparse_model, late_interaction_model
+
+
+if __name__ == "__main__":
+    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"  # silence symlink nag
+    os.environ["FASTEMBED_CACHE_PATH"] = (
+        r"c:\users\jordan-dev\data\fastembed_cache"  # persistent cache
+    )
+    load_embed_store()
+
+    # Clear existing stores for a fresh start
+    # clear_stores(
+    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
+    #     collection_name="facebook_posts",
+    #     parent_store_path=r"c:\users\jordan-dev\data\parent_store",
+    # )
+
     # retriever, client = create_document_retriever(
     #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
     #     collection_name="facebook_posts",

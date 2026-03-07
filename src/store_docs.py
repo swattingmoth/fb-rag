@@ -103,98 +103,6 @@ def split_documents(documents: List[Document]) -> List[Document]:
     return splitter.split_documents(documents)
 
 
-def create_document_retriever(
-    db_folder_name: str, collection_name: str, parent_store: BaseStore[str, Document]
-) -> Tuple[ParentDocumentRetriever, QdrantClient]:
-    """Create and configure a ParentDocumentRetriever backed by a local Qdrant vector store.
-
-    This function builds a text splitter, dense and sparse embedding functions, and a Qdrant vectorstore
-    and then returns a ParentDocumentRetriever that uses the vectorstore for child-document
-    retrieval (with hybrid dense + sparse search) and the provided parent_store for parent-document lookups.
-
-    Args:
-        db_folder_name (str): Filesystem path to use as Qdrant's local storage directory. The
-            directory will be used by Qdrant to store vector data for all collections.
-        collection_name (str): Name of the Qdrant collection to use or create. Documents
-            (child vectors) will be stored/retrieved under this collection.
-        parent_store (BaseStore[str, Document]): A docstore implementing the expected interface
-            required by ParentDocumentRetriever (used to fetch parent documents).
-    Returns:
-        ParentDocumentRetriever: A retriever configured to:
-            - split incoming text into chunks using RecursiveCharacterTextSplitter
-              (chunk_size=400, chunk_overlap=50, separators=["\n\n", "\n", ".", " ", ""])
-            - embed chunks with OllamaEmbeddings(model="nomic-embed-text:latest") for dense vectors
-            - embed chunks with FastEmbedSparse(model_name="Qdrant/bm25") for sparse (BM25 keyword) vectors
-            - query a Qdrant vectorstore persisted at db_folder_name and scoped to collection_name using hybrid search
-            - consult parent_store for parent-document access
-    Notes:
-        - This function creates the Qdrant collection if it doesn't exist, with configurations for both dense and sparse vectors.
-        - parent_store must implement the methods ParentDocumentRetriever expects (e.g., fetch/lookup by id).
-        - If you need different chunking, overlap, or embedding settings, modify the splitter and embeddings before creating the retriever.
-        - Ensure Qdrant is running locally or use the embedded mode (as here with path=db_folder_name).
-    Example:
-        retriever = create_document_retriever("/path/to/db", "my_collection", my_parent_store)
-
-    """
-
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=400,
-        chunk_overlap=50,
-        separators=["\n\n", "\n", ".", " ", ""],
-    )
-
-    # Dense embeddings (semantic)
-    dense_embeddings = OllamaTextEmbedding(model="nomic-embed-text:latest")
-
-    # Sparse embeddings (BM25 for keyword matching)
-    sparse_embeddings = FastEmbedSparse(model_name="Qdrant/bm25")
-
-    # Get the dimension of dense embeddings
-    embedding_dim = len(
-        dense_embeddings.embed("test")
-    )  # Should be 768 for nomic-embed-text
-
-    # Connect to local Qdrant (embedded mode with persistent storage)
-    client = QdrantClient(path=db_folder_name)
-
-    # Create collection if it doesn't exist
-    if not client.collection_exists(collection_name):
-        client.create_collection(
-            collection_name=collection_name,
-            vectors_config={
-                "dense": models.VectorParams(
-                    size=embedding_dim,
-                    distance=models.Distance.COSINE,
-                )
-            },
-            sparse_vectors_config={
-                "sparse": models.SparseVectorParams(
-                    index=models.SparseIndexParams(on_disk=False)
-                )
-            },
-        )
-
-    # Vectorstore for child documents with hybrid search
-    vectorstore = QdrantVectorStore(
-        client=client,
-        collection_name=collection_name,
-        embedding=dense_embeddings,
-        sparse_embedding=sparse_embeddings,
-        retrieval_mode=RetrievalMode.HYBRID,
-        vector_name="dense",
-        sparse_vector_name="sparse",
-    )
-
-    retriever = ParentDocumentRetriever(
-        vectorstore=vectorstore,
-        docstore=parent_store,
-        child_splitter=splitter,
-        search_kwargs={"k": 7},
-    )
-
-    return retriever, client
-
-
 def create_client(
     collection_name: str,
 ) -> Tuple[
@@ -244,7 +152,7 @@ def create_client(
     )  # Should be 128 for colbertv2.0
 
     # Connect to local Qdrant (embedded mode with persistent storage)
-    client = QdrantClient(":memory:")
+    client = QdrantClient(host="localhost", port=6333)
 
     # Create collection if it doesn't exist
     if not client.collection_exists(collection_name):
@@ -275,122 +183,6 @@ def create_client(
         sparse_embeddings_model,
         late_interaction_embeddings_model,
     )
-
-
-def create_doc_store(folder_path: str) -> BaseStore[str, Document]:
-    """Create a LocalFileStore docstore at the specified folder path.
-
-    Args:
-        folder_path: Filesystem path where the LocalFileStore will persist data.
-
-    Returns:
-        A LocalFileStore instance configured to use the specified folder path.
-    """
-    local_store = LocalFileStore(folder_path)
-    return create_kv_docstore(local_store)
-
-
-def clear_stores(db_folder_name: str, collection_name: str, parent_store_path: str):
-    """
-    Clear Qdrant collection and parent docstore folder to start fresh.
-    """
-    client = QdrantClient(path=db_folder_name)
-
-    # 1. Delete Qdrant collection if it exists
-    try:
-        if client.collection_exists(collection_name):
-            client.delete_collection(collection_name)
-            print(f"Deleted existing Qdrant collection: {collection_name}")
-        else:
-            print(f"No existing Qdrant collection found: {collection_name}")
-    except UnexpectedResponse as e:
-        if e.status_code == 404:
-            print(f"Collection {collection_name} not found (already clean)")
-        else:
-            raise
-
-    # 2. Clear the parent docstore folder
-    if os.path.exists(parent_store_path):
-        shutil.rmtree(parent_store_path)
-        print(f"Cleared parent docstore folder: {parent_store_path}")
-    else:
-        print(f"No parent docstore folder found: {parent_store_path}")
-
-    # Optional: recreate empty folder so create_kv_docstore doesn't complain
-    os.makedirs(parent_store_path, exist_ok=True)
-
-
-def inspect_qdrant_collection(db_folder_name: str, collection_name: str):
-    client = QdrantClient(path=db_folder_name)
-
-    try:
-        info = client.get_collection(collection_name)
-    except Exception as e:
-        print(f"Error fetching collection info: {e}")
-        client.close()
-        return
-
-    print("Collection Info:")
-    print(f"  Status: {info.status}")
-    print(f"  Optimizer status: {info.optimizer_status}")
-    print(f"  Points count: {info.points_count}")
-    print(f"  Indexed vectors count: {info.indexed_vectors_count}")
-    print(f"  Segments count: {info.segments_count}")
-
-    # Vector configs
-    print("\nDense Vectors:")
-    if info.config.params.vectors:
-        for name, vec_params in info.config.params.vectors.items():
-            print(f"  '{name}': size={vec_params.size}, distance={vec_params.distance}")
-    else:
-        print("  No dense vectors configured.")
-
-    # Sparse Vectors
-    print("\nSparse Vectors:")
-    sparse_config = info.config.params.sparse_vectors
-    if sparse_config and "sparse" in sparse_config:
-        sparse_params = sparse_config["sparse"]
-        print(f"  'sparse' configured: {sparse_params}")
-        print(
-            f"    Index on_disk: {sparse_params.index.on_disk if sparse_params.index else 'N/A'}"
-        )
-    else:
-        print("  WARNING: No sparse vectors configured in this collection!")
-
-    client.close()
-
-
-def view_sample_sparse_vector(db_folder_name: str, collection_name: str):
-    client = QdrantClient(path=db_folder_name)
-
-    # Scroll first point (or use offset=0, limit=1)
-    points, _ = client.scroll(
-        collection_name=collection_name,
-        limit=1,
-        with_payload=True,
-        with_vectors={"include": ["sparse"]},
-    )
-
-    if points:
-        point = points[0]
-        print(f"Sample Point ID: {point.id}")
-        print(f"Payload (metadata + text snippet): {point.payload}")
-
-        if point.vector and "sparse" in point.vector:
-            sparse_vec = point.vector["sparse"]
-            print(
-                f"Sparse Vector (BM25): Indices {sparse_vec.indices[:10]}..., Values {sparse_vec.values[:10]}..."
-            )
-            if len(sparse_vec.indices) > 0:
-                print("Sparse vector populated correctly (non-empty).")
-            else:
-                print("WARNING: Sparse vector is empty! BM25 not working.")
-        else:
-            print("WARNING: No sparse vector found on point!")
-    else:
-        print("No points in collection.")
-
-    client.close()
 
 
 def store_documents(
@@ -436,11 +228,18 @@ def store_documents(
         )
         points.append(point)
 
-    operation_info = client.upsert(
-        collection_name=collection_name,
-        points=points,
-    )
-    print(f"Upserted {len(points)} points. Operation info: {operation_info}")
+    # upsert the points in chunks of 50 to keep payloads small
+    batch_size = 50
+    for start in range(0, len(points), batch_size):
+        batch = points[start : start + batch_size]
+        info = client.upsert(
+            collection_name=collection_name,
+            points=batch,
+        )
+        print(
+            f"Upserted batch {start // batch_size + 1} "
+            f"({len(batch)} points) - operation info: {info}"
+        )
 
 
 def load_embed_store() -> Tuple[

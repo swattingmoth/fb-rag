@@ -1,34 +1,24 @@
-from json import load
-import shutil
 from typing import Iterable, List, Tuple
+from venv import logger
 from fastembed import (
     LateInteractionTextEmbedding,
-    SparseEmbedding,
     SparseTextEmbedding,
     TextEmbedding,
 )
 from langchain_core.documents import Document
 from langchain_ollama import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_classic.retrievers import (
-    ParentDocumentRetriever,
-)  # Updated import (langchain_classic → langchain)
-from langchain_classic.storage import (
-    LocalFileStore,
-)  # Updated import (langchain_classic → langchain)
-from langchain_classic.storage._lc_store import create_kv_docstore  # Updated import
 from langchain_community.document_loaders import JSONLoader
-from langchain_core.stores import BaseStore
-from langchain_core.retrievers import BaseRetriever
-from langchain_qdrant import QdrantVectorStore, FastEmbedSparse, RetrievalMode
 import numpy as np
 from qdrant_client import QdrantClient
 from qdrant_client import models
-from qdrant_client.http.exceptions import UnexpectedResponse
-import os
+
+from src import config as c
 
 
 class OllamaTextEmbedding(TextEmbedding):
+    """OllamaTextEmbedding is a wrapper around the OllamaEmbeddings class that is compatible with the TextEmbedding interface."""
+
     def __init__(self, model: str):
         self.embeddings = OllamaEmbeddings(model=model)
 
@@ -92,6 +82,10 @@ def split_documents(documents: List[Document]) -> List[Document]:
 
     Args:
         documents: List of Document objects to be split.
+
+    Returns:
+        A new list of Document objects where long documents have been
+        subdivided according to the configured chunk size and overlap.
     """
 
     splitter = RecursiveCharacterTextSplitter(
@@ -104,7 +98,7 @@ def split_documents(documents: List[Document]) -> List[Document]:
 
 
 def create_client(
-    collection_name: str,
+    config: c.Config,
 ) -> Tuple[
     QdrantClient, OllamaTextEmbedding, SparseTextEmbedding, LateInteractionTextEmbedding
 ]:
@@ -124,7 +118,7 @@ def create_client(
         for dense, late interaction, and sparse embeddings.
 
     Parameters:
-        collection_name (str): The name of the Qdrant collection to create or connect to.
+        config (Config): The configuration object containing settings for Qdrant connection and collection name.
     Returns:
         Tuple[QdrantClient, OllamaTextEmbedding, SparseTextEmbedding, LateInteractionTextEmbedding]: A tuple containing:
             - QdrantClient: Connected in-memory Qdrant client
@@ -145,19 +139,19 @@ def create_client(
     )
 
     dense_embedding_dim = len(
-        list(dense_embeddings_model.query_embed("test")[0])
+        list(dense_embeddings_model.query_embed("test")[0])  # type: ignore [index]
     )  # Should be 768 for qwen3-embedding:8b
     late_interation_embedding_dim = len(
         list(late_interaction_embeddings_model.query_embed("test"))[0][0]
     )  # Should be 128 for colbertv2.0
 
     # Connect to local Qdrant (embedded mode with persistent storage)
-    client = QdrantClient(host="localhost", port=6333)
+    client = QdrantClient(host=config.qdrant_host, port=config.qdrant_port)
 
     # Create collection if it doesn't exist
-    if not client.collection_exists(collection_name):
+    if not client.collection_exists(config.collection_name):
         client.create_collection(
-            collection_name=collection_name,
+            collection_name=config.collection_name,
             vectors_config={
                 "dense": models.VectorParams(
                     size=dense_embedding_dim,
@@ -193,19 +187,36 @@ def store_documents(
     sparse_embeddings_model: SparseTextEmbedding,
     late_interaction_embeddings_model: LateInteractionTextEmbedding,
 ):
+    """Embed and upsert a batch of documents into a Qdrant collection.
+
+    This function takes a list of ``Document`` objects, computes dense,
+    sparse and late‑interaction embeddings for each document text, constructs
+    the appropriate payloads, and writes them into the specified Qdrant
+    collection in batches. It is intended to be called after the client and
+    embedding models have been initialized via :func:`create_client`.
+
+    Args:
+        documents: Documents to embed and store.
+        collection_name: Name of the Qdrant collection to upsert into.
+        client: Active QdrantClient instance.
+        dense_embeddings_model: Model used for dense semantic embeddings.
+        sparse_embeddings_model: Model used for BM25 sparse embeddings.
+        late_interaction_embeddings_model: Model used for token‑level
+            interaction embeddings.
+    """
     points = []
 
     document_texts = [doc.page_content for doc in documents]
-    print("Creating dense embeddings...")
+    logger.info("Creating dense embeddings...")
     dense_embeddings = list(dense_embeddings_model.embed(document_texts))
-    print("Creating sparse embeddings...")
+    logger.info("Creating sparse embeddings...")
     sparse_embeddings = list(sparse_embeddings_model.embed(document_texts))
-    print("Creating late interaction embeddings...")
+    logger.info("Creating late interaction embeddings...")
     late_interaction_embeddings = list(
         late_interaction_embeddings_model.embed(document_texts)
     )
 
-    print("Upserting points into Qdrant...")
+    logger.info("Upserting points into Qdrant...")
     for idx, (
         dense_embedding,
         sparse_embedding,
@@ -236,27 +247,39 @@ def store_documents(
             collection_name=collection_name,
             points=batch,
         )
-        print(
+        logger.info(
             f"Upserted batch {start // batch_size + 1} "
             f"({len(batch)} points) - operation info: {info}"
         )
 
 
-def load_embed_store() -> Tuple[
+def load_and_store_documents(config: c.Config) -> Tuple[
     QdrantClient,
     OllamaTextEmbedding,
     SparseTextEmbedding,
     LateInteractionTextEmbedding,
 ]:
-    documents = load_json_documents(r"c:\Users\jordan-dev\data\processed_posts.json")
+    """
+    Store documents in a vector store.
 
-    client, dense_model, sparse_model, late_interaction_model = create_client(
-        collection_name="facebook_posts"
-    )
+    Parameters:
+        config (Config): The configuration object containing settings for document loading and storage.
+
+    Returns:
+        Tuple[QdrantClient, OllamaTextEmbedding, SparseTextEmbedding, LateInteractionTextEmbedding]: A tuple containing:
+            - QdrantClient: The Qdrant client connected to the collection
+            - OllamaTextEmbedding: The dense embedding model instance
+            - SparseTextEmbedding: The sparse embedding model instance
+            - LateInteractionTextEmbedding: The late interaction embedding model instance
+
+    """
+    documents = load_json_documents(config.document_path)
+
+    client, dense_model, sparse_model, late_interaction_model = create_client(config)
 
     store_documents(
         documents=documents,
-        collection_name="facebook_posts",
+        collection_name=config.collection_name,
         client=client,
         dense_embeddings_model=dense_model,
         sparse_embeddings_model=sparse_model,
@@ -267,35 +290,6 @@ def load_embed_store() -> Tuple[
 
 
 if __name__ == "__main__":
-    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"  # silence symlink nag
-    os.environ["FASTEMBED_CACHE_PATH"] = (
-        r"c:\users\jordan-dev\data\fastembed_cache"  # persistent cache
-    )
-    load_embed_store()
-
-    # Clear existing stores for a fresh start
-    # clear_stores(
-    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
-    #     collection_name="facebook_posts",
-    #     parent_store_path=r"c:\users\jordan-dev\data\parent_store",
-    # )
-
-    # retriever, client = create_document_retriever(
-    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
-    #     collection_name="facebook_posts",
-    #     parent_store=create_doc_store(r"c:\users\jordan-dev\data\parent_store"),
-    # )
-
-    # retriever.add_documents(documents)
-
-    # client.close()
-
-    # inspect_qdrant_collection(
-    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
-    #     collection_name="facebook_posts",
-    # )
-
-    # view_sample_sparse_vector(
-    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
-    #     collection_name="facebook_posts",
-    # )
+    config = c.Config()
+    c.configure_logging(config.log_folder + "/store_docs.log")
+    load_and_store_documents(config)

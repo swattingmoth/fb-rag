@@ -1,6 +1,7 @@
 import json
 from collections.abc import Iterable
 from typing import Optional
+from venv import logger
 
 from fastembed import LateInteractionTextEmbedding, SparseTextEmbedding
 from langchain_core.documents import Document
@@ -9,11 +10,12 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from qdrant_client import QdrantClient
 from qdrant_client import QdrantClient, models
-from store_docs import (
+from src.store_docs import (
     OllamaTextEmbedding,
     create_client,
-    load_embed_store,
+    load_and_store_documents,
 )
+from src import config as c
 
 
 def create_rag_prompt() -> PromptTemplate:
@@ -117,6 +119,7 @@ def prompt_query(
     dense_model: OllamaTextEmbedding,
     sparse_model: SparseTextEmbedding,
     late_interaction_model: LateInteractionTextEmbedding,
+    config: c.Config,
 ) -> None:
     """
     Interactive RAG query loop powered by hybrid search and Ollama LLM.
@@ -124,6 +127,16 @@ def prompt_query(
     Uses dense, sparse, and late-interaction embeddings to retrieve relevant
     Facebook posts, then generates context-aware answers using qwen3:14b.
     Responses are returned as JSON with source citations.
+
+    Parameters:
+        client (QdrantClient): Qdrant client for vector search.
+        dense_model (OllamaTextEmbedding): Model for dense embeddings.
+        sparse_model (SparseTextEmbedding): Model for sparse embeddings.
+        late_interaction_model (LateInteractionTextEmbedding): Model for late interaction embeddings.
+        config (Config): Configuration object with application settings.
+
+    Returns:
+        None
     """
     default_k = 7
     print("\nFacebook Posts RAG Q&A")
@@ -134,13 +147,15 @@ def prompt_query(
     # Initialize LLM and prompt
     try:
         llm = ChatOllama(
-            model="qwen3:14b",
+            model=config.model,
             temperature=0.7,
             top_p=0.9,
         )
     except Exception as e:
-        print(f"Error: Failed to connect to Ollama. Make sure qwen3:14b is running.")
-        print(f"Details: {e}")
+        print(
+            f"Error: Failed to connect to Ollama. Make sure {config.model} is running."
+        )
+        logger.error(f"Error connecting to {config.model}: {e}")
         raise
 
     rag_prompt = create_rag_prompt()
@@ -173,6 +188,7 @@ with citations showing dates and post titles.
 
         print(f"\nQuestion: {query}")
         print("Searching your posts...")
+        logger.info(f"Searching documents with query: {query}")
 
         try:
             # Perform hybrid search using all three embedding models
@@ -194,7 +210,7 @@ with citations showing dates and post titles.
             ]
 
             results = client.query_points(
-                collection_name="facebook_posts",
+                collection_name=config.collection_name,
                 prefetch=prefetch,
                 query=late_vectors,
                 using="colbertv2.0",
@@ -202,8 +218,10 @@ with citations showing dates and post titles.
                 with_payload=True,
             )
         except Exception as e:
-            print(f"Error during retrieval: {e}")
+            logger.error(f"Error during retrieval: {e}")
             raise
+
+        logger.info("Finished document retrieval")
 
         if not results or not results.points:  # type: ignore[index]
             # No results found, still try to generate a response
@@ -218,8 +236,9 @@ with citations showing dates and post titles.
         # Convert Qdrant results to LangChain Documents for RAG
         retrieved_docs = []
         for group in results:
-            for scored_point in group[1]:
+            for i, scored_point in enumerate(group[1]):
                 payload = scored_point.payload
+                logger.info(f"Retrieved doc {i+1}:\n {json.dumps(payload, indent=2)}")
                 doc = Document(
                     page_content=payload.get("document", ""),
                     metadata={
@@ -256,37 +275,15 @@ with citations showing dates and post titles.
             retrieved_docs=retrieved_docs,
             answer_text=answer,
         )
-        print(json.dumps(response, indent=2))
+        print(response["answer"])
+        logger.info(f"Generated response:\n {json.dumps(response, indent=2)}")
 
 
 if __name__ == "__main__":
-    # manual_sparse_search(
-    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
-    #     collection_name="facebook_posts",
-    #     query="pastor pat",
-    #     k=10,
-    # )
-    # Use the Qdrant paths you defined earlier
-    # retriever, client = create_document_retriever(
-    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
-    #     collection_name="facebook_posts",
-    #     parent_store=create_doc_store(r"c:\users\jordan-dev\data\parent_store"),
-    # )
+    config = c.Config()
+    c.configure_logging(config.log_folder + "/query_docs.log", log_to_console=False)
+    client, dense_model, sparse_model, late_interaction_model = create_client(config)
 
-    # vector_store, doc_store, client = create_vector_store(
-    #     db_folder_name=r"c:\users\jordan-dev\data\qdrant_db",
-    #     collection_name="facebook_posts",
-    #     parent_store_folder=r"c:\users\jordan-dev\data\parent_store",
-    # )
-
-    # # Optional: verify we have hybrid mode
-    # if hasattr(vector_store, "retrieval_mode"):
-    #     print(f"Vector store retrieval mode: {vector_store.retrieval_mode}")
-
-    client, dense_model, sparse_model, late_interaction_model = create_client(
-        collection_name="facebook_posts",
-    )
-
-    prompt_query(client, dense_model, sparse_model, late_interaction_model)
+    prompt_query(client, dense_model, sparse_model, late_interaction_model, config)
 
     client.close()

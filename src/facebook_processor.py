@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+from src import config as c
+
 logger = logging.getLogger(__name__)
 
 
@@ -212,6 +214,19 @@ def _infer_post_type(post: Dict[str, Any]) -> str:
 
 
 def fix_mojibake(text: str) -> str:
+    """Repair common mojibake sequences that appear in Facebook exports.
+
+    Facebook sometimes double‑encodes certain characters when exporting
+    posts, resulting in sequences like ``\u00e2\u0080\u0093`` instead of a
+    simple hyphen. This helper performs a handful of known substitutions to
+    restore the intended characters before the JSON is parsed.
+
+    Args:
+        text: Raw text that may contain encoded mojibake sequences.
+
+    Returns:
+        The cleaned text with replacements applied.
+    """
     replacements = {
         r"\u00e2\u0080\u0093": "-",
         r"\u00e2\u0080\u0094": "—",
@@ -294,20 +309,12 @@ def process_facebook_posts(input_file: str, output_file: str) -> int:
 
 
 if __name__ == "__main__":
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
-
-    # TODO: Accept input/output paths as arguments
-    # Process the Facebook posts file
-    input_path = r"c:\Users\jordan-dev\facebook_download\your_facebook_activity\posts\your_posts__check_ins__photos_and_videos_1.json"
-    output_path = r"c:\Users\jordan-dev\data\processed_posts.json"
+    config = c.Config()
+    c.configure_logging(config.log_folder + "/facebook_processor.log")
 
     try:
-        count = process_facebook_posts(input_path, output_path)
-        print(f"✓ Successfully processed {count} posts")
+        count = process_facebook_posts(config.raw_data_path, config.document_path)
+        logger.info(f"✓ Successfully processed {count} posts")
     except Exception as e:
-        print(f"✗ Processing failed: {e}")
+        logger.error(f"✗ Processing failed: {e}")
         exit(1)

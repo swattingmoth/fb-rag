@@ -314,7 +314,7 @@ if __name__ == "__main__":
 
     try:
         count = process_facebook_posts(config.raw_data_path, config.document_path)
-        logger.info(f"✓ Successfully processed {count} posts")
+        logger.info(f"Successfully processed {count} posts")
     except Exception as e:
-        logger.error(f"✗ Processing failed: {e}")
+        logger.error(f"Processing failed: {e}")
         exit(1)

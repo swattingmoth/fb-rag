@@ -206,6 +206,7 @@ def store_documents(
     """
     points = []
 
+    # TODO: Embed in batches instead of all at once to reduce memory usage for large document sets
     document_texts = [doc.page_content for doc in documents]
     logger.info("Creating dense embeddings...")
     dense_embeddings = list(dense_embeddings_model.embed(document_texts))

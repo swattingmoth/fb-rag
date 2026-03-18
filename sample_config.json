@@ -1,0 +1,9 @@
+{
+    "collection_name": "facebook_posts",
+    "document_path": "facebook_posts.json",
+    "log_folder":"c:/logs",
+    "raw_data_path":"facebook_download/your_facebook_activity/posts/your_posts__check_ins__photos_and_videos_1.json",
+    "model":"qwen3:14b",
+    "qdrant_host":"localhost",
+    "qdrant_port":6333
+}

@@ -80,20 +80,36 @@ def extract_post_text(post: Dict[str, Any]) -> str:
     Returns:
         Extracted post text, or empty string if none found.
     """
+    post_text = ""
     # Try to get post text from data array
     if "data" in post and isinstance(post["data"], list):
         for item in post["data"]:
-            if isinstance(item, dict) and "post" in item:
-                return item["post"].strip()
+            if isinstance(item, dict) and "post" in item and item["post"]:
+                post_text = item["post"].strip()
+                break
+    # Fallback to title if no data.post text found
+    if not post_text and "title" in post and post["title"]:
+        post_text = post["title"].strip()
 
-    # Fallback to title
-    if "title" in post:
-        return post["title"].strip()
+    # detect if the post is of the form <name> shared a <item> which contains no useful content.
+    words = post_text.split()
+    if len(words) < 10 and (
+        post_text.endswith("shared a link.")
+        or post_text.endswith("added a new photo.")
+        or post_text.endswith("updated his status.")
+        or post_text.endswith("shared an event.")
+        or post_text.endswith("shared a post.")
+        or post_text.endswith("shared a photo.")
+    ):
+        logger.info(
+            f"Post text appears to be boilerplate sharing text, skipping content: {post_text}"
+        )
+        return ""
 
-    return ""
+    return post_text
 
 
-def extract_urls(post: Dict[str, Any]) -> List[str]:
+def extract_urls(content: str, post: Dict[str, Any]) -> List[str]:
     """Extract all URLs from a post (post text and attachments).
 
     Preserves URLs for source attribution and context verification in RAG output.
@@ -107,13 +123,12 @@ def extract_urls(post: Dict[str, Any]) -> List[str]:
     urls = set()
 
     # Extract from post text
-    post_text = extract_post_text(post)
-    if post_text:
+    if content:
         import re
 
         # Simple URL pattern matching
         url_pattern = r"https?://[^\s]+"
-        urls.update(re.findall(url_pattern, post_text))
+        urls.update(re.findall(url_pattern, content))
 
     # Extract from attachments
     if "attachments" in post and isinstance(post["attachments"], list):
@@ -163,7 +178,7 @@ def process_facebook_post(post: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
     timestamp = post.get("timestamp")
-    urls = extract_urls(post)
+    urls = extract_urls(content, post)
 
     # Normalize timestamp to ISO 8601 for consistency
     normalized_timestamp = normalize_timestamp(timestamp) if timestamp else ""

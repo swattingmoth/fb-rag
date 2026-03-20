@@ -13,7 +13,6 @@ from qdrant_client import QdrantClient, models
 from src.store_docs import (
     OllamaTextEmbedding,
     create_client,
-    load_and_store_documents,
 )
 from src import config as c
 

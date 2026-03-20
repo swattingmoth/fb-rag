@@ -204,53 +204,53 @@ def store_documents(
         late_interaction_embeddings_model: Model used for token‑level
             interaction embeddings.
     """
-    points = []
-
-    # TODO: Embed in batches instead of all at once to reduce memory usage for large document sets
-    document_texts = [doc.page_content for doc in documents]
-    logger.info("Creating dense embeddings...")
-    dense_embeddings = list(dense_embeddings_model.embed(document_texts))
-    logger.info("Creating sparse embeddings...")
-    sparse_embeddings = list(sparse_embeddings_model.embed(document_texts))
-    logger.info("Creating late interaction embeddings...")
-    late_interaction_embeddings = list(
-        late_interaction_embeddings_model.embed(document_texts)
-    )
-
-    logger.info("Upserting points into Qdrant...")
-    for idx, (
-        dense_embedding,
-        sparse_embedding,
-        late_interaction_embedding,
-        doc,
-    ) in enumerate(
-        zip(dense_embeddings, sparse_embeddings, late_interaction_embeddings, documents)
-    ):
-        point = models.PointStruct(
-            id=idx,
-            vector={
-                "dense": dense_embedding,  # type: ignore [dict-item]
-                "bm25": sparse_embedding.as_object(),  # type: ignore [dict-item]
-                "colbertv2.0": late_interaction_embedding,  # type: ignore [dict-item]
-            },
-            payload={
-                "document": doc.page_content,
-                **doc.metadata,
-            },
-        )
-        points.append(point)
-
-    # upsert the points in chunks of 50 to keep payloads small
     batch_size = 50
-    for start in range(0, len(points), batch_size):
-        batch = points[start : start + batch_size]
+    for batch_num in range(0, len(documents), batch_size):
+        batch_docs = documents[batch_num : batch_num + batch_size]
+        batch_texts = [doc.page_content for doc in batch_docs]
+        logger.info(f"Creating embeddings for batch {batch_num // batch_size + 1}...")
+        dense_embeddings = list(dense_embeddings_model.embed(batch_texts))
+        sparse_embeddings = list(sparse_embeddings_model.embed(batch_texts))
+        late_interaction_embeddings = list(
+            late_interaction_embeddings_model.embed(batch_texts)
+        )
+        points = []
+        for i, (
+            dense_embedding,
+            sparse_embedding,
+            late_interaction_embedding,
+            doc,
+        ) in enumerate(
+            zip(
+                dense_embeddings,
+                sparse_embeddings,
+                late_interaction_embeddings,
+                batch_docs,
+            )
+        ):
+            global_id = batch_num + i
+            point = models.PointStruct(
+                id=global_id,
+                vector={
+                    "dense": dense_embedding,  # type: ignore [dict-item]
+                    "bm25": sparse_embedding.as_object(),  # type: ignore [dict-item]
+                    "colbertv2.0": late_interaction_embedding,  # type: ignore [dict-item]
+                },
+                payload={
+                    "document": doc.page_content,
+                    **doc.metadata,
+                },
+            )
+            points.append(point)
+        logger.info(
+            f"Upserting batch {batch_num // batch_size + 1} ({len(points)} points)..."
+        )
         info = client.upsert(
             collection_name=collection_name,
-            points=batch,
+            points=points,
         )
         logger.info(
-            f"Upserted batch {start // batch_size + 1} "
-            f"({len(batch)} points) - operation info: {info}"
+            f"Upserted batch {batch_num // batch_size + 1} - operation info: {info}"
         )
 
 

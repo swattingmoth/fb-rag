@@ -1,3 +1,9 @@
+# local configuration
+config.json
+
+#logs
+logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

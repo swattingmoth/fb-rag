@@ -29,4 +29,7 @@ ollama pull qwen3:14b
 - Run `facebook_processor.py`. This will process the Facebook posts stored at `raw_data_path` and store them at `document_path`. **Note** I don't use Facebook a lot so I have less than 300 total posts. If you have more posts, modifications may be required.
 - Make sure Qdrant is running and run `store_docs.py`. 
 
+# Ask Questions
+- Run `query_docs.py` and start asking questions!
+
 

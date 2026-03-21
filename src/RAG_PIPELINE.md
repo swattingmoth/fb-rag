@@ -1,4 +1,4 @@
-"""RAG Pipeline Implementation for Facebook Posts Q&A
+# RAG Pipeline Implementation for Facebook Posts Q&A
 
 This module implements a Retrieval-Augmented Generation (RAG) pipeline for
 answering natural language questions about Facebook posts using LangChain,

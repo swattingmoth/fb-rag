@@ -1,5 +1,5 @@
 from typing import Iterable, List, Tuple
-from venv import logger
+import logging
 from fastembed import (
     LateInteractionTextEmbedding,
     SparseTextEmbedding,
@@ -14,6 +14,8 @@ from qdrant_client import QdrantClient
 from qdrant_client import models
 
 from src import config as c
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaTextEmbedding(TextEmbedding):
@@ -107,18 +109,13 @@ def create_client(
     - Dense embeddings (semantic): Qwen3 8B model for semantic similarity
     - Sparse embeddings (keyword): BM25 model for keyword matching
     - Late interaction embeddings: ColBERTv2.0 model for token-level interactions
-        Tuple[QdrantClient, OllamaTextEmbedding, SparseTextEmbedding, LateInteractionTextEmbedding]:
-            A tuple containing:
-            - QdrantClient: Connected in-memory Qdrant client
-            - OllamaTextEmbedding: Dense embedding model instance (768 dimensions)
-            - SparseTextEmbedding: BM25 sparse embedding model instance
-            - LateInteractionTextEmbedding: ColBERT embedding model instance (128 dimensions)
     Note:
         Creates the collection if it doesn't already exist with configured vector spaces
         for dense, late interaction, and sparse embeddings.
 
     Parameters:
         config (Config): The configuration object containing settings for Qdrant connection and collection name.
+
     Returns:
         Tuple[QdrantClient, OllamaTextEmbedding, SparseTextEmbedding, LateInteractionTextEmbedding]: A tuple containing:
             - QdrantClient: Connected in-memory Qdrant client

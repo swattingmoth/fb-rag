@@ -101,7 +101,7 @@ def extract_post_text(post: Dict[str, Any]) -> str:
         or post_text.endswith("shared a post.")
         or post_text.endswith("shared a photo.")
     ):
-        logger.info(
+        logger.debug(
             f"Post text appears to be boilerplate sharing text, skipping content: {post_text}"
         )
         return ""
@@ -124,8 +124,6 @@ def extract_urls(content: str, post: Dict[str, Any]) -> List[str]:
 
     # Extract from post text
     if content:
-        import re
-
         # Simple URL pattern matching
         url_pattern = r"https?://[^\s]+"
         urls.update(re.findall(url_pattern, content))
@@ -319,7 +317,6 @@ def process_facebook_posts(input_file: str, output_file: str) -> int:
         f"skipped {skipped_count}"
     )
     logger.info(f"Output written to {output_file}")
-
     return len(processed_documents)
 
 

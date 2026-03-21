@@ -41,9 +41,12 @@ class TestExtractPostText(unittest.TestCase):
 
     def test_extract_from_title_fallback(self):
         """Should fallback to title if no post field."""
-        post = {"data": [{}], "title": "Christopher Jordan shared a link."}
+        post = {
+            "data": [{}],
+            "title": "Christopher Jordan wrote something interesting.",
+        }
         result = extract_post_text(post)
-        self.assertEqual(result, "Christopher Jordan shared a link.")
+        self.assertEqual(result, "Christopher Jordan wrote something interesting.")
 
     def test_extract_empty_post(self):
         """Should return empty string for posts with no content."""
@@ -57,25 +60,28 @@ class TestExtractUrls(unittest.TestCase):
 
     def test_extract_urls_from_post_text(self):
         """Should extract URLs from post text."""
-        post = {"data": [{"post": "Check this out: http://example.com/page"}]}
-        result = extract_urls(post)
+        content = "Check this out: http://example.com/page"
+        post = {"data": [{"post": content}]}
+        result = extract_urls(content, post)
         self.assertIn("http://example.com/page", result)
 
     def test_extract_urls_from_external_context(self):
         """Should extract URLs from attachment external_context."""
+        content = ""
         post = {
             "attachments": [
                 {"data": [{"external_context": {"url": "https://example.com/shared"}}]}
             ],
             "data": [{}],
         }
-        result = extract_urls(post)
+        result = extract_urls(content, post)
         self.assertIn("https://example.com/shared", result)
 
     def test_extract_urls_returns_unique(self):
         """Should return unique URLs without duplicates."""
-        post = {"data": [{"post": "http://example.com http://example.com"}]}
-        result = extract_urls(post)
+        content = "http://example.com http://example.com"
+        post = {"data": [{"post": content}]}
+        result = extract_urls(content, post)
         # Count occurrences of example.com
         count = sum(1 for url in result if "example.com" in url)
         self.assertEqual(count, 1)

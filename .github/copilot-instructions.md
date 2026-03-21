@@ -1,217 +1,71 @@
-# AI Coding Agent Instructions for RAG Project
+# Code Modification and Contribution Guidelines for AI Coding Agent
 
-## Project Overview
-This is a Retrieval-Augmented Generation (RAG) application that combines information retrieval with language models to provide context-aware responses. The project is currently in initialization phase.
+These instructions guide AI-assisted code contributions to ensure precision, maintainability, and alignment with project architecture. Follow each rule exactly unless explicitly told otherwise.
+These were copied from https://www.reddit.com/r/GithubCopilot/comments/1llss4p/this_is_my_generalinstructionsmd_file_to_use_with/
 
-## Architecture (To Be Defined)
-Update this section as the project grows with:
-- **Document Storage**: How documents are ingested and indexed
-- **Retrieval Layer**: Vector embeddings and search mechanisms
-- **Generation Layer**: LLM integration and prompt management
-- **API Layer**: Request handling and response formatting
+1. **Minimize Scope of Change**  
+   - Identify the smallest unit (function, class, or module) that fulfills the requirement.  
+   - Do not modify unrelated code.  
+   - Avoid refactoring unless required for correctness or explicitly requested.
 
-## Setup & Development Workflow
+2. **Preserve System Behavior**  
+   - Ensure the change does not affect existing features or alter outputs outside the intended scope.  
+   - Maintain original patterns, APIs, and architectural structure unless otherwise instructed.
 
-### Initial Setup
-1. Clone the repository
-2. Install dependencies (specify package manager and key packages)
-3. Configure environment variables (add `.env.example` when needed)
-4. Run initial tests to verify setup
+3. **Graduated Change Strategy**  
+   - **Default:** Implement the minimal, focused change.  
+   - **If Needed:** Apply small, local refactorings (e.g., rename a variable, extract a function).  
+   - **Only if Explicitly Requested:** Perform broad restructuring across files or modules.
 
-### Building & Running
-- **Build**: `[insert build command]`
-- **Run**: `[insert run command]`
-- **Tests**: `[insert test command]`
-- **Linting**: `[insert lint command]`
+4. **Clarify Before Acting on Ambiguity**  
+   - If the task scope is unclear or may impact multiple components, stop and request clarification.  
+   - Never assume broader intent beyond the described requirement.
 
-### Key Commands (Add as Project Develops)
-Document critical commands that aren't obvious from file inspection, such as:
-- Database migrations or setup
-- Vector index generation
-- Document ingestion scripts
-- Configuration validation
+5. **Log, Don’t Implement, Unscoped Enhancements**  
+   - Identify and note related improvements without changing them.  
+   - Example: `// Note: Function Y may benefit from similar validation.`
 
-## Code Conventions & Patterns
+6. **Ensure Reversibility**  
+   - Write changes so they can be easily undone.  
+   - Avoid cascading or tightly coupled edits.
 
-### Project Structure
-- **Source Code**: Specify main language/framework location (e.g., `src/`, `lib/`)
-- **Tests**: Location and structure conventions
-- **Configuration**: Where environment and app config lives
-- **Documentation**: API docs, deployment guides, architectural diagrams
+7. **Code Quality Standards**  
+   - **Clarity:** Use descriptive names. Keep functions short and single-purpose.  
+   - **Consistency:** Match existing styles, patterns, and naming.  
+   - **Error Handling:** Use try/except (Python) or try/catch (JS/TS). Anticipate failures (e.g., I/O, user input).  
+   - **Security:** Sanitize inputs. Avoid hardcoding secrets. Use environment variables for config.  
+   - **Testability:** Enable unit testing. Prefer dependency injection over global state.  
+   - **Documentation:**  
+     - Use DocStrings (`"""Description"""`) for Python.  
+     - Use JSDoc (`/** @param {Type} name */`) for JavaScript/TypeScript.  
+     - Comment only non-obvious logic.
 
-### Language/Framework Specifics
-- **Primary Language**: Python 3.9+
-- **Key Dependencies**: LangChain, LlamaIndex, OpenAI SDK, or similar
-- **Document Format**: Handling of PDFs, markdown, plain text, etc.
-- **Vector Store**: Pinecone, Weaviate, Qdrant, FAISS, or similar
+8. **Testing Requirements**  
+   - Add or modify only tests directly related to your change.  
+   - Ensure both success and failure paths are covered.  
+   - Do not delete existing tests unless explicitly allowed.
 
-### Python Development Guidelines
+9. **Commit Message Format**  
+   - Use the [Conventional Commits](
+https://www.conventionalcommits.org
+) format.  
+   - Structure: `type(scope): message`, using imperative mood.  
+   - Examples:  
+     - `feat(auth): add login validation for expired tokens`  
+     - `fix(api): correct status code on error`  
+     - `test(utils): add tests for parseDate helper`
 
-#### Code Style & Quality
-- **Format**: Follow [PEP 8](https://pep8.org/) with 100-character line limit
-- **Linting**: Use `ruff` for fast linting and `black` for code formatting
-- **Type Hints**: Use type annotations throughout for better IDE support and maintainability
-  ```python
-  from typing import List, Optional
-  
-  def retrieve_documents(query: str, top_k: int = 5) -> List[Dict[str, str]]:
-      """Retrieve top-k documents matching the query."""
-  ```
-- **Docstrings**: Use Google-style docstrings for modules, functions, and classes
-  ```python
-  def embed_text(text: str) -> List[float]:
-      """Convert text to embeddings.
-      
-      Args:
-          text: The input text to embed.
-          
-      Returns:
-          A list of embedding values.
-          
-      Raises:
-          ValueError: If text is empty.
-      """
-  ```
+10. **Forbidden Actions Unless Explicitly Requested**  
+    - Global refactoring across files  
+    - Changes to unrelated modules  
+    - Modifying formatting or style-only elements without functional reason  
+    - Adding new dependencies
 
-#### Documenting Complex Logic
-- Use inline comments to explain the "why" behind complex algorithms, especially in:
-  - Document chunking and overlap strategies
-  - Retrieval ranking and scoring logic
-  - Prompt engineering decisions
-  - Token limit calculations
-  ```python
-  # Split documents into overlapping chunks to preserve context across boundaries
-  # Overlap of 100 tokens ensures semantic continuity for retrieval
-  chunk_size = 512
-  overlap = 100
-  chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size-overlap)]
-  ```
-- Document architectural decisions in module docstrings and README
-- Use block comments for non-obvious design patterns or workarounds
+11. **Handling Ambiguous References**
+    - When encountering ambiguous terms (e.g., "this component", "the helper"), 
+      always refer to the exact file path and line numbers when possible
+    - If exact location is unclear, ask for clarification before proceeding
+    - Never assume the meaning of ambiguous references
 
-#### Project Structure
-```
-src/
-├── __init__.py
-├── config.py           # Configuration and environment variables
-├── retrieval/          # Document retrieval logic
-│   ├── __init__.py
-│   ├── loader.py       # Document loading/parsing
-│   ├── embedder.py     # Embedding generation
-│   └── retriever.py    # Vector search and retrieval
-├── generation/         # LLM and response generation
-│   ├── __init__.py
-│   ├── prompts.py      # Prompt templates
-│   └── llm.py          # LLM interactions
-├── rag.py             # Main RAG pipeline orchestration
-└── utils/             # Shared utilities
-    ├── __init__.py
-    ├── logging.py
-    └── helpers.py
+Always act within the described scope and prompt constraints. If unsure—ask first
 
-tests/
-├── __init__.py
-├── test_retrieval.py
-├── test_generation.py
-└── test_rag.py
-```
-
-#### Dependencies Management
-- **Requirements**: Use `requirements.txt` or `pyproject.toml` with pinned versions for reproducibility
-- **Development Dependencies**: Maintain separate dev requirements for testing, linting, and formatting
-  ```
-  # requirements.txt
-  langchain==0.x.x
-  openai==1.x.x
-  numpy==1.x.x
-  
-  # requirements-dev.txt
-  pytest==7.x.x
-  ruff==0.x.x
-  black==23.x.x
-  ```
-
-#### Virtual Environment
-- Use Anaconda for environment management with the `llmdev` environment
-- Create/activate with: `conda activate llmdev`
-- If environment doesn't exist, create it: `conda create -n llmdev python=3.9`
-- Install dependencies: `conda install -r requirements.txt` or `pip install -r requirements.txt` within the activated environment
-- Document Anaconda setup in project README
-
-#### Testing & Error Handling
-- **Unit Tests**: Test individual components (retrieval, embedding, prompt formatting) using `unittest`
-  ```python
-  import unittest
-  
-  class TestEmbedder(unittest.TestCase):
-      def test_embed_text_returns_vector(self):
-          embedder = TextEmbedder()
-          result = embedder.embed("test text")
-          self.assertIsInstance(result, list)
-          self.assertGreater(len(result), 0)
-  ```
-- **Integration Tests**: Test end-to-end RAG workflow with sample documents
-- **Error Handling**: Catch and log specific exceptions; provide context in error messages
-  ```python
-  try:
-      embeddings = model.embed(text)
-  except ConnectionError as e:
-      logger.error(f"Failed to connect to embedding service: {e}")
-      raise
-  ```
-
-#### Logging
-- Use Python's `logging` module; avoid `print()` for debug info
-  ```python
-  import logging
-  logger = logging.getLogger(__name__)
-  logger.info(f"Retrieved {len(docs)} documents for query: {query}")
-  ```
-- Configure logging levels in config module
-- Log important operations: document loading, embedding requests, LLM calls
-
-#### Async Patterns (if applicable)
-- Use `asyncio` for concurrent operations (batch embedding, parallel retrievals)
-- Prefer `async/await` syntax over callbacks
-- Document which functions are async and why
-
-### RAG-Specific Patterns
-- **Prompt Templates**: Location and customization approach
-- **Context Window Management**: How chunks are sized and retrieved
-- **Source Attribution**: How original documents are referenced in responses
-- **Error Handling**: Fallback behavior when retrieval fails
-
-## Integration Points
-
-### External Dependencies
-- Document repositories/storage (S3, local filesystem, etc.)
-- Vector databases or embedding services
-- LLM providers (OpenAI, Anthropic, Hugging Face, etc.)
-- Authentication mechanisms
-
-### Cross-Component Communication
-- How retrieval results feed into the LLM prompt
-- Async/sync patterns for document processing
-- Error propagation and recovery strategies
-
-## Contributing Guidelines
-
-### Before Making Changes
-1. Check existing patterns in similar files
-2. Understand the data flow from document ingestion to response generation
-3. Verify any new dependencies are approved
-
-### Testing Expectations
-- Unit tests for retrieval logic
-- Integration tests for end-to-end RAG workflows
-- Validation of response quality (when applicable)
-
-### Code Review Focus Areas
-- Efficient retrieval without excessive token usage
-- Proper source attribution in generated responses
-- Security of API keys and sensitive configurations
-- Performance of document processing pipeline
-
----
-
-**Status**: Project structure under development. Add specific patterns and tools as they're implemented.

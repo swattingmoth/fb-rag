@@ -1,20 +1,21 @@
 import json
-from collections.abc import Iterable
 from typing import Optional
-from venv import logger
+import logging
+
 
 from fastembed import LateInteractionTextEmbedding, SparseTextEmbedding
 from langchain_core.documents import Document
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from qdrant_client import QdrantClient
 from qdrant_client import QdrantClient, models
 from src.store_docs import (
     OllamaTextEmbedding,
     create_client,
 )
 from src import config as c
+
+logger = logging.getLogger(__name__)
 
 
 def create_rag_prompt() -> PromptTemplate:
